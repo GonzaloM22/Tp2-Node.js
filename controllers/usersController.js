@@ -1,60 +1,63 @@
-import User from '../models/user.js';
-import { createToken } from '../services/loginService.js';
+import {
+  register as registerService,
+  login as loginService,
+  addFav,
+} from '../services/userService.js';
+import { validationResult } from 'express-validator';
 
-const login = (req, res) => {
+const login = async (req, res) => {
   const { email, password } = req.body;
 
-  if (!email) {
-    return res.status(400).send({ message: 'Email is required' });
-  }
+  try {
+    const resultValidation = validationResult(req);
+    const hasError = resultValidation.throw();
 
-  User.findOne({ email }, (error, user) => {
-    if (error) {
-      return res.status(500).send({ message: 'Error has occurred', error });
+    if (hasError) {
+      return res.status(400).send({ message: resultValidation.errors[0].msg });
     }
 
-    if (!user) {
-      return res.status(404).send({ message: 'User not found' });
-    }
+    const result = await loginService(email, password).catch((error) => error);
 
-    if (!(password && user.comparePassword(password))) {
-      return res.status(401).send({ message: 'User or Password incorrect' });
-    }
-
-    res
-      .status(200)
-      .send({ message: 'Login succesful', token: createToken(user) });
-  });
-};
-
-const register = (req, res) => {
-  const { email, password } = req.body;
-
-  User.findOne({ email }, (error, user) => {
-    if (error) {
-      return res.status(500).send({ message: 'Error has occurred', error });
-    }
-
-    if (user) {
-      return res.status(400).send({ message: 'Email already exists' });
-    }
-
-    const newUser = new User({ email, password });
-
-    newUser.save((error) => {
-      if (error) {
-        return res.status(500).send({ message: 'Unexpected error', error });
-      }
-
-      return res.status(200).send({
-        message: 'Register succesful',
-        newUser,
-        token: createToken(newUser),
-      });
+    return res.status(result.status).send({
+      message: result.message,
+      token: result.token,
     });
-  });
+  } catch (error) {
+    return res.status(500).send({ message: 'request error', error });
+  }
 };
 
-const addFav = () => {};
+const register = async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const resultValidation = validationResult(req);
+    const hasError = resultValidation.throw();
 
-export { login, register };
+    if (hasError) {
+      return res.status(400).send({ message: resultValidation.errors[0].msg });
+    }
+
+    const result = await registerService(email, password).catch(
+      (error) => error
+    );
+    return res.status(result.status).send(result);
+  } catch (error) {
+    res.status(500).send(error);
+  }
+};
+
+const newFav = async (req, res) => {
+  const { idUser, idAnime } = req.body;
+
+  try {
+    const result = await addFav(idUser, idAnime).catch((error) => error);
+
+    return res
+      .status(result.status)
+      .send({ message: result.message, userUpdated: result.userUpdated });
+  } catch (error) {
+    res.status(500).send(error);
+  }
+};
+
+export { login, register, newFav };
